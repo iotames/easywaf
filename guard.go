@@ -62,11 +62,10 @@ func (g *WebGuard) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		defer g.releaseConnection()
-
-		if allowed, reason := g.filter.CheckRequest(r); !allowed {
+		if err := g.filter.CheckRequest(r); err != nil {
 			g.stats.incBlocked()
-			log.Printf("Request blocked: %s - %s", filter.GetClientIP(r), reason)
-			http.Error(w, "Request blocked: "+reason, http.StatusForbidden)
+			log.Printf("%s", err.Error())
+			http.Error(w, err.Message, http.StatusForbidden)
 			return
 		}
 	}

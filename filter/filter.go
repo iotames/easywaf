@@ -30,57 +30,56 @@ func NewFilter(limitPerMinute int, maxBodySize int64) *Filter {
 }
 
 // CheckRequest 检查请求是否合法
-func (f *Filter) CheckRequest(req *http.Request) (bool, string) {
+func (f *Filter) CheckRequest(req *http.Request) *ErrorBlock {
 	clientIP := GetClientIP(req)
 
 	// 1. 检查IP黑名单
 	if f.blockedIPs[clientIP] {
-		return false, "IP在黑名单中"
+		return NewErrorBlock(BLOCK_TYPE_BLACK_IP, clientIP)
 	}
 
 	// 2. 检查用户代理
 	ua := req.UserAgent()
 	if !f.userAgentLimiter.Allow(ua) {
 		f.blockedIPs[clientIP] = true
-		return false, "可疑的用户代理"
+		return NewErrorBlock(BLOCK_TYPE_USER_AGENT, clientIP)
 	}
 
 	// 3. 速率限制
 	if !f.rateLimiter.Allow(clientIP) {
-		return false, "请求频率过高"
+		return NewErrorBlock(BLOCK_TYPE_RATE_LIMIT, clientIP)
 	}
 
 	// 4. 检查可疑路径
 	if f.isRiskPath(req.URL.Path) {
-		return false, "访问可疑路径"
+		return NewErrorBlock(BLOCK_TYPE_RISK_PATH, clientIP)
 	}
 
 	// 5. 检查请求体大小
 	if f.maxBodySize > 0 && req.ContentLength > f.maxBodySize {
-		return false, "请求体超出限制"
+		return NewErrorBlock(BLOCK_TYPE_BODY_SIZE, clientIP)
 	}
 
 	// 6. 检查HTTP方法
 	if !f.isAllowedMethod(req.Method) {
-		return false, "请求方法被禁止"
+		return NewErrorBlock(BLOCK_TYPE_METHOD, clientIP)
 	}
 
 	// 7. 检查路径注入攻击
 	if f.hasPathInjection(req.URL.Path) {
-		return false, "检测到路径注入攻击"
+		return NewErrorBlock(BLOCK_TYPE_PATH_INJECTION, clientIP)
 	}
 
 	// 8. 检查SQL注入特征
 	if containsSQLInjection(req.URL.RawQuery) || containsSQLInjection(req.URL.Path) {
-		return false, "检测到SQL注入尝试"
+		return NewErrorBlock(BLOCK_TYPE_SQL_INJECTION, clientIP)
 	}
 
 	// 9. 检查XSS攻击特征
 	if containsXSS(req.URL.RawQuery) {
-		return false, "检测到XSS攻击尝试"
+		return NewErrorBlock(BLOCK_TYPE_XSS, clientIP)
 	}
-
-	return true, ""
+	return nil
 }
 
 // isAllowedMethod 检查是否允许的HTTP方法
