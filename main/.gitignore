@@ -1,0 +1,9 @@
+.env
+default.env
+go.sum
+*.exe
+*.log
+*.txt
+*.json
+resource.syso
+runtime/
